@@ -34,6 +34,12 @@ spec:
             capabilities:
               drop:
                 - "ALL"
+          volumeMounts:
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
