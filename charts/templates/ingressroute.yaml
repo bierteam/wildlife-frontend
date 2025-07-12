@@ -1,0 +1,16 @@
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wildlife-frontend
+  annotations:
+    link.argocd.argoproj.io/external-link: 'https://{{ .Values.fqdn }}'
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`{{ .Values.fqdn }}`)
+      kind: Rule
+      services:
+        - name: wildlife-frontend
+          port: 80

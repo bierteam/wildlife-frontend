@@ -1,0 +1,49 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: wildlife-frontend
+  name: wildlife-frontend
+spec:
+  replicas: {{ .Values.replicas }}
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app: wildlife-frontend
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: wildlife-frontend
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - image: ghcr.io/bierteam/wildlife-frontend:{{ .Values.image.tag }}
+          envFrom:
+            - secretRef:
+                name: wildlife-frontend-env
+                optional: false
+          imagePullPolicy: Always
+          name: wildlife-frontend
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - "ALL"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wildlife-frontend
+spec:
+  selector:
+    app: wildlife-frontend
+  ports:
+    - port: 80
+      name: default
+      protocol: TCP
+      targetPort: 8081

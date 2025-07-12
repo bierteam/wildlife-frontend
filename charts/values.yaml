@@ -1,0 +1,5 @@
+replicas: "1"
+
+fqdn: wildlife.ninoo.nl
+image:
+  tag: "sha-f620702"
