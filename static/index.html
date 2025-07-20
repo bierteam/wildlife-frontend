@@ -57,7 +57,7 @@
   }
 
   function fetchSpeciesByWKT(wkt) {
-    fetch(`http://localhost:8080/species?wkt=${encodeURIComponent(wkt)}`)
+    fetch(`https://api-wildlife.ninoo.nl/species?wkt=${encodeURIComponent(wkt)}`)
       .then(res => res.json())
       .then(data => {
         speciesLayer.clearLayers();
