@@ -69,7 +69,7 @@
       });
   }
 
-  function updateMap(lat, lon, size_m = 50000) {
+  function updateMap(lat, lon, size_m = 10000) {
     if (currentMarker) map.removeLayer(currentMarker);
     if (currentPolygon) map.removeLayer(currentPolygon);
 
