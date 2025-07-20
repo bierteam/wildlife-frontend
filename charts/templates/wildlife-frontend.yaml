@@ -31,9 +31,6 @@ spec:
           name: wildlife-frontend
           securityContext:
             allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - "ALL"
           volumeMounts:
             - name: nginx-cache
               mountPath: /var/cache/nginx
