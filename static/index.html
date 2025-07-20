@@ -1,34 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wildlife Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""/>
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"
+          integrity="sha384-Akqfrbj/HpNVo8k11SXBb6TlBWmXXlYQrCSqEWmyKJe+hDm3Z/B2WVG4smwBkRVm"
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""></script>
+  <style>
+    #map { height: 800px; }
+    #locateBtn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
 
-<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js" integrity="sha384-Akqfrbj/HpNVo8k11SXBb6TlBWmXXlYQrCSqEWmyKJe+hDm3Z/B2WVG4smwBkRVm" crossorigin="anonymous"></script>
- <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-     crossorigin=""/>
- <!-- Make sure you put this AFTER Leaflet's CSS -->
- <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-     crossorigin=""></script>
-
-
- <div id="map"></div>
- <button id="locateBtn" style="position: absolute; top: 10px; right: 10px; z-index: 1000;">
-  Go to Current Location
-</button>
- <style>
- #map { height: 800px; }
- </style>
+<div id="map"></div>
+<button id="locateBtn">Go to Current Location</button>
 
 <script>
-  const currentLocation = [68.013, 13.195]
-  const map = L.map('map').setView(currentLocation, 13);
+  let map, speciesLayer, currentMarker, currentPolygon, currentPolygonCoords;
 
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-  }).addTo(map);
-
-  const speciesLayer = L.layerGroup().addTo(map);
-  let currentMarker, currentPolygon;
-  let currentPolygonCoords;
   function createBoundingBox(lat, lon, size_m) {
     const latOffset = (size_m / 2) / 111320;
     const lonOffset = (size_m / 2) / (111320 * Math.cos(lat * Math.PI / 180));
@@ -43,17 +44,6 @@
 
   function polygonCoordsToWKT(coords) {
     return `POLYGON((${coords.map(c => `${c[1]} ${c[0]}`).join(', ')}))`;
-  }
-
-  function updateMap(lat, lon, size_m = 50000) {
-    if (currentMarker) map.removeLayer(currentMarker);
-    if (currentPolygon) map.removeLayer(currentPolygon);
-
-    currentMarker = L.marker([lat, lon]).addTo(map);
-    currentMarker.bindPopup("Current location").openPopup();
-    currentPolygonCoords = createBoundingBox(lat, lon, size_m);
-
-    fetchSpeciesByWKT(polygonCoordsToWKT(currentPolygonCoords));
   }
 
   function fetchSpeciesByWKT(wkt) {
@@ -78,22 +68,63 @@
       });
   }
 
-  // Initialize map with default location
-  updateMap(currentLocation[0], currentLocation[1]);
-
-  // On map click, update polygon and fetch data
-  map.on('click', e => updateMap(e.latlng.lat, e.latlng.lng));
-
-  document.getElementById('locateBtn').addEventListener('click', () => {
-    map.setView(currentLocation, 13);
-
+  function updateMap(lat, lon, size_m = 50000) {
     if (currentMarker) map.removeLayer(currentMarker);
-    currentMarker = L.marker(currentLocation).addTo(map);
+    if (currentPolygon) map.removeLayer(currentPolygon);
+
+    currentMarker = L.marker([lat, lon]).addTo(map);
     currentMarker.bindPopup("Current location").openPopup();
 
-    currentPolygonCoords = createBoundingBox(currentLocation[0], currentLocation[1], 5000);
+    currentPolygonCoords = createBoundingBox(lat, lon, size_m);
     fetchSpeciesByWKT(polygonCoordsToWKT(currentPolygonCoords));
-  });
+  }
 
+  function initializeMap(currentLocation) {
+    map = L.map('map').setView(currentLocation, 13);
 
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    speciesLayer = L.layerGroup().addTo(map);
+
+    updateMap(currentLocation[0], currentLocation[1]);
+
+    map.on('click', e => updateMap(e.latlng.lat, e.latlng.lng));
+
+    document.getElementById('locateBtn').addEventListener('click', () => {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          map.setView([lat, lon], 13);
+          updateMap(lat, lon, 5000);
+        },
+        err => console.error("Geolocation error:", err),
+        { enableHighAccuracy: true }
+      );
+    });
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      initializeMap([lat, lon]);
+    },
+    err => {
+      console.error("Geolocation error:", err);
+      // fallback location
+      initializeMap([51.505, -0.09]); // London
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  );
 </script>
+
+</body>
+</html>
