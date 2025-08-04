@@ -2,4 +2,4 @@ replicas: "1"
 
 fqdn: wildlife.ninoo.nl
 image:
-  tag: "sha-0d91e98"
+  tag: "sha-72d218b"
