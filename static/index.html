@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="htmx-config" content='{"selfRequestsOnly": false}' />
   <meta charset="UTF-8">
   <title>Wildlife Map</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -12,24 +13,58 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
           crossorigin=""></script>
+  <link rel="stylesheet" href="./sidebar/sidebar.css" /> 
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
   <style>
-    
     #map { height: 100vh; }
     #locateBtn {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 1000;
+      margin-top: 10px;
+    }
+    #speciesSelect{
+      margin-top: 30px;
     }
   </style>
 </head>
 <body>
 
-<div id="map"></div>
-<button id="locateBtn">Go to Current Location</button>
+<!-- sidebar -->
+    <div id="sidebar" class="leaflet-sidebar collapsed">
 
+        <!-- nav tabs -->
+        <div class="leaflet-sidebar-tabs">
+            <!-- top aligned tabs -->
+            <ul role="tablist">
+                <li><a href="#home" role="tab"><i class="fa fa-bars active"></i></a></li>
+            </ul>
+        </div>
+
+        <!-- panel content -->
+        <div class="leaflet-sidebar-content">
+            <div class="leaflet-sidebar-pane" id="home">
+                <h1 class="leaflet-sidebar-header">
+                    Menu
+                    <span class="leaflet-sidebar-close"><i class="fa fa-caret-left"></i></span>
+                </h1>
+                <button type="button" id="locateBtn" class="btn btn-primary">
+                   <i class="fa fa-refresh"></i> Refresh
+                </button>
+          <select id="speciesSelect" class="form-select me-auto" aria-label="Species select">
+            <option value="">Loading...</option>
+          </select>
+          </div>
+            <div class="leaflet-sidebar-pane" id="messages">
+                <h1 class="leaflet-sidebar-header">Messages<span class="leaflet-sidebar-close"><i class="fa fa-caret-left"></i></span></h1>
+            </div>
+        </div>
+    </div>
+
+<!-- end sidebar -->
+     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
+<div id="map"></div>
+<script src="./sidebar/sidebar.js"></script>
 <script>
-  let map, speciesLayer, currentMarker, currentPolygon, currentPolygonCoords;
+  let map, speciesLayer, currentMarker, currentPolygon, currentPolygonCoords, currentLatLong;
 
   function createBoundingBox(lat, lon, size_m) {
     const latOffset = (size_m / 2) / 111320;
@@ -47,8 +82,12 @@
     return `POLYGON((${coords.map(c => `${c[1]} ${c[0]}`).join(', ')}))`;
   }
 
-  function fetchSpeciesByWKT(wkt) {
-    fetch(`https://api-wildlife.ninoo.nl/species?wkt=${encodeURIComponent(wkt)}`)
+  function fetchSpeciesByWKT(wkt, scientific_name=null) {
+    let url = `https://api-wildlife.ninoo.nl/species?wkt=${encodeURIComponent(wkt)}`
+    if (scientific_name){
+      url += `&scientific_name=${scientific_name}`
+    }
+    fetch(url)
       .then(res => res.json())
       .then(data => {
         speciesLayer.clearLayers();
@@ -77,11 +116,35 @@
     currentMarker.bindPopup("Current location").openPopup();
 
     currentPolygonCoords = createBoundingBox(lat, lon, size_m);
+    currentLatLong = [lat, lon]
     fetchSpeciesByWKT(polygonCoordsToWKT(currentPolygonCoords));
+    loadSpeciesSelect(polygonCoordsToWKT(currentPolygonCoords));
+  }
+
+  function loadSpeciesSelect(wkt){
+      fetch(`https://api-wildlife.ninoo.nl/species/names?wkt=${encodeURIComponent(wkt)}`)
+        .then(response => response.json())
+        .then(data => {
+          const select = document.getElementById('speciesSelect');
+          select.innerHTML = '<option value="">Select species</option>';
+          data.forEach(item => {
+            if (item.scientific_name) {
+              const opt = document.createElement('option');
+              opt.value = item.scientific_name;
+              opt.textContent = item.scientific_name;
+              select.appendChild(opt);
+            }
+          });
+        })
+        .catch(() => {
+          const select = document.getElementById('speciesSelect');
+          select.innerHTML = '<option value="">Failed to load</option>';
+        });
   }
 
   function initializeMap(currentLocation) {
     map = L.map('map').setView(currentLocation, 13);
+
 
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -93,7 +156,6 @@
     updateMap(currentLocation[0], currentLocation[1]);
 
     map.on('click', e => updateMap(e.latlng.lat, e.latlng.lng));
-
     document.getElementById('locateBtn').addEventListener('click', () => {
       navigator.geolocation.getCurrentPosition(
         pos => {
@@ -106,6 +168,14 @@
         { enableHighAccuracy: true }
       );
     });
+    initializeSidebar(map)
+  }
+
+
+  function initializeSidebar(map){
+    var sidebar = L.control.sidebar({ container: 'sidebar' })
+        .addTo(map)
+        .open('home');
   }
 
   navigator.geolocation.getCurrentPosition(
@@ -117,7 +187,7 @@
     err => {
       console.error("Geolocation error:", err);
       // fallback location
-      initializeMap([51.505, -0.09]); // London
+      initializeMap([51.505, -0.09]);
     },
     {
       enableHighAccuracy: true,
@@ -125,6 +195,14 @@
       maximumAge: 0
     }
   );
+
+  document.getElementById('speciesSelect').addEventListener('change', function () {
+    const value = this.value;
+    if (!value) return;
+    currentPolygonCoords = createBoundingBox(currentLatLong[0], currentLatLong[1], 10000);
+    fetchSpeciesByWKT(polygonCoordsToWKT(currentPolygonCoords), value);
+  });
+
 </script>
 
 </body>
